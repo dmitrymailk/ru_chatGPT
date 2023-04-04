@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  awesome_ml_project:
+    environment:
+      - TEST_ENVIRONMENT_VAR=TEST ENVIRONMENT VAR :3
+      - CUDA_VISIBLE_DEVICE=0
+    build:
+      args:
+        - TEST_ARG_ENVIRONMENT=TEST ARG ENVIRONMENT :3
+      context: .
+    command: /bin/sh -c "while sleep 100000000; do :; done"
+    volumes:
+      - .:/src:cached
+      - /root/.cache/:/root/.cache/
