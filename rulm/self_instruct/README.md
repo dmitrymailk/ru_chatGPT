@@ -1,23 +1,34 @@
+## Подготовка данных
+
+```bash
+python scripts/create_mixed_set.py data/train.jsonl data/val.jsonl
+```
+
 ## Training
+
 Steps:
-* Install a dev version of transformers, peft and bitsandbytes.
-* Prepare your data as two JSONL files, with three fields: "instruction", "input", "output".
-* Download some base model, for example, decapoda-research/llama-7b-hf. 
-* Fix pad, bos, eos tokens everywhere. And also a name of the tokenizer.
-* Run training.
+
+- Install a dev version of transformers, peft and bitsandbytes.
+- Prepare your data as two JSONL files, with three fields: "instruction", "input", "output".
+- Download some base model, for example, decapoda-research/llama-7b-hf.
+- Fix pad, bos, eos tokens everywhere. And also a name of the tokenizer.
+- Run training.
 
 Install libraries:
+
 ```
 sudo apt-get install git-lfs
 pip install git+https://github.com/huggingface/transformers peft bitsandbytes
 ```
 
 Download a base model:
+
 ```
 git clone https://huggingface.co/decapoda-research/llama-7b-hf
 ```
 
 Correct tokenizer_config.json:
+
 ```
 {
     "model_max_length": 1000000000000000019884624838656,
@@ -25,8 +36,8 @@ Correct tokenizer_config.json:
 }
 ```
 
-
 Correct config.json:
+
 ```
 {
   "pad_token_id": 0,
@@ -52,6 +63,7 @@ Correct config.json:
 ```
 
 Correct generation_config.json:
+
 ```
 {
   "_from_model_config": true,
@@ -63,6 +75,7 @@ Correct generation_config.json:
 ```
 
 A training config example:
+
 ```
 {
     "trainer": {
@@ -103,5 +116,5 @@ A training config example:
 Run training script:
 
 ```python
-python3 scripts/train.py --config-file configs/llama_7b_lora.json --train-file train.jsonl --val-file val.jsonl  --output-dir models/llama_7b_lora
+python scripts/train.py --config-file configs/llama_7b_lora.json --train-file data/train.jsonl --val-file data/val.jsonl  --output-dir models/llama_7b_lora
 ```

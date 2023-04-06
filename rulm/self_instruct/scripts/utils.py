@@ -9,7 +9,8 @@ from multiprocessing.pool import ThreadPool
 
 import torch
 import numpy as np
-import openai
+
+# import openai
 import copy
 
 
@@ -25,47 +26,47 @@ class OpenAIDecodingArguments(object):
     frequency_penalty: float = 0.0
 
 
-def openai_completion(
-    messages,
-    decoding_args,
-    model_name,
-    sleep_time
-):
-    decoding_args = copy.deepcopy(decoding_args)
-    assert decoding_args.n == 1
-    while True:
-        try:
-            completions = openai.ChatCompletion.create(
-                messages=messages,
-                model=model_name,
-                **decoding_args.__dict__
-            )
-            break
-        except openai.error.OpenAIError as e:
-            logging.warning(f"OpenAIError: {e}.")
-            if "Please reduce" in str(e):
-                decoding_args.max_tokens = int(decoding_args.max_tokens * 0.8)
-                logging.warning(f"Reducing target length to {decoding_args.max_tokens}, Retrying...")
-            else:
-                logging.warning("Hit request rate limit; retrying...")
-                time.sleep(sleep_time)
-    return completions.choices[0]
+# def openai_completion(
+#     messages,
+#     decoding_args,
+#     model_name,
+#     sleep_time
+# ):
+#     decoding_args = copy.deepcopy(decoding_args)
+#     assert decoding_args.n == 1
+#     while True:
+#         try:
+#             completions = openai.ChatCompletion.create(
+#                 messages=messages,
+#                 model=model_name,
+#                 **decoding_args.__dict__
+#             )
+#             break
+#         except openai.error.OpenAIError as e:
+#             logging.warning(f"OpenAIError: {e}.")
+#             if "Please reduce" in str(e):
+#                 decoding_args.max_tokens = int(decoding_args.max_tokens * 0.8)
+#                 logging.warning(f"Reducing target length to {decoding_args.max_tokens}, Retrying...")
+#             else:
+#                 logging.warning("Hit request rate limit; retrying...")
+#                 time.sleep(sleep_time)
+#     return completions.choices[0]
 
 
-def openai_batch_completion(
-    batch,
-    decoding_args: OpenAIDecodingArguments,
-    model_name="gpt-3.5-turbo",
-    sleep_time=2
-):
-    completions = []
-    with ThreadPool(len(batch)) as pool:
-        results = pool.starmap(openai_completion, [
-            (messages, decoding_args, model_name, sleep_time) for messages in batch
-        ])
-        for result in results:
-            completions.append(result)
-    return completions
+# def openai_batch_completion(
+#     batch,
+#     decoding_args: OpenAIDecodingArguments,
+#     model_name="gpt-3.5-turbo",
+#     sleep_time=2
+# ):
+#     completions = []
+#     with ThreadPool(len(batch)) as pool:
+#         results = pool.starmap(openai_completion, [
+#             (messages, decoding_args, model_name, sleep_time) for messages in batch
+#         ])
+#         for result in results:
+#             completions.append(result)
+#     return completions
 
 
 def read_jsonl(file_name):
@@ -101,16 +102,25 @@ def fix_tokenizer(tokenizer):
         if tokenizer.sep_token_id in (None, tokenizer.vocab_size) and "sep" in token:
             special_tokens["sep_token"] = token
 
-    if tokenizer.sep_token_id in (None, tokenizer.vocab_size) and "bos_token" in special_tokens:
+    if (
+        tokenizer.sep_token_id in (None, tokenizer.vocab_size)
+        and "bos_token" in special_tokens
+    ):
         special_tokens["sep_token"] = special_tokens["bos_token"]
 
-    if tokenizer.pad_token_id in (None, tokenizer.vocab_size) and "pad_token" not in special_tokens:
+    if (
+        tokenizer.pad_token_id in (None, tokenizer.vocab_size)
+        and "pad_token" not in special_tokens
+    ):
         if tokenizer.unk_token_id is not None:
             special_tokens["pad_token"] = tokenizer.unk_token
         else:
             special_tokens["pad_token"] = "<|pad|>"
 
-    if tokenizer.sep_token_id in (None, tokenizer.vocab_size) and "sep_token" not in special_tokens:
+    if (
+        tokenizer.sep_token_id in (None, tokenizer.vocab_size)
+        and "sep_token" not in special_tokens
+    ):
         if tokenizer.bos_token_id is not None:
             special_tokens["sep_token"] = tokenizer.bos_token
         else:
@@ -135,7 +145,7 @@ def fix_model(model, tokenizer, max_target_tokens_count, use_resize=True):
         tokenizer.bos_token_id,
         tokenizer.cls_token_id,
         tokenizer.sep_token_id,
-        tokenizer.unk_token_id
+        tokenizer.unk_token_id,
     )
     for bos_candidate in bos_candidates:
         model.config.bos_token_id = bos_candidate

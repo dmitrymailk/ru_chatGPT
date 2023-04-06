@@ -12,7 +12,11 @@ for row in load_dataset("yahma/alpaca-cleaned", split="train"):
 
 for row in load_dataset("IlyaGusev/ru_turbo_alpaca", split="train"):
     row["output"] = row.pop("alternative_output")
-    row = {key: value for key, value in row.items() if key in ("input", "output", "instruction")}
+    row = {
+        key: value
+        for key, value in row.items()
+        if key in ("input", "output", "instruction")
+    }
     records.append(row)
 
 random.shuffle(records)
