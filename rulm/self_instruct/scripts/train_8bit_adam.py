@@ -4,15 +4,17 @@ import json
 import os
 
 import wandb
+import bitsandbytes as bnb
+
 import torch
+from torch import nn
+
 from tqdm import tqdm
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
     AutoModelForCausalLM,
     DataCollatorForTokenClassification,
-)
-from transformers import (
     Trainer,
     TrainingArguments,
     logging,
@@ -20,11 +22,15 @@ from transformers import (
     TrainerState,
     TrainerControl,
 )
+from transformers.trainer_pt_utils import get_parameter_names
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+
+
 from peft import get_peft_model, LoraConfig, prepare_model_for_int8_training
 
 from dataset import InstructDataset
 from utils import set_random_seed, fix_tokenizer, fix_model, read_jsonl
+
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -155,8 +161,33 @@ def train(
         load_best_model_at_end=True,
         report_to=report_to,
         deepspeed=deepspeed_config,
+        gradient_checkpointing=True,
         **trainer_config,
     )
+
+    decay_parameters = get_parameter_names(model, [nn.LayerNorm])
+    decay_parameters = [name for name in decay_parameters if "bias" not in name]
+
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.named_parameters() if n in decay_parameters],
+            "weight_decay": training_args.weight_decay,
+        },
+        {
+            "params": [
+                p for n, p in model.named_parameters() if n not in decay_parameters
+            ],
+            "weight_decay": 0.0,
+        },
+    ]
+
+    adam_bnb_optim = bnb.optim.Adam8bit(
+        optimizer_grouped_parameters,
+        betas=(training_args.adam_beta1, training_args.adam_beta2),
+        eps=training_args.adam_epsilon,
+        lr=training_args.learning_rate,
+    )
+
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -164,6 +195,7 @@ def train(
         eval_dataset=val_dataset,
         callbacks=callbacks,
         data_collator=data_collator,
+        optimizers=(adam_bnb_optim, None),
     )
 
     with wandb.init(project="rulm_self_instruct", name=config_file) as run:
