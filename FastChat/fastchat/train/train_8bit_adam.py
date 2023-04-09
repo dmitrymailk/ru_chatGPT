@@ -21,12 +21,21 @@ import pathlib
 from typing import Dict, Optional, Sequence
 
 import torch
+from torch import nn
 
 import transformers
 from torch.utils.data import Dataset
 from transformers import Trainer
 
 from fastchat import conversation as conversation_lib
+
+import bitsandbytes as bnb
+from transformers.trainer_pt_utils import get_parameter_names
+from peft import (
+    get_peft_model,
+    LoraConfig,
+    prepare_model_for_int8_training,
+)
 
 # TODO: import and use code from ../data/dataset.py
 
@@ -298,7 +307,10 @@ def train():
     model = transformers.LlamaForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
+        load_in_8bit=True,
+        device_map="auto",
     )
+    model = prepare_model_for_int8_training(model)
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
@@ -324,10 +336,36 @@ def train():
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
 
+    # convert to 8 bit
+
+    decay_parameters = get_parameter_names(model, [nn.LayerNorm])
+    decay_parameters = [name for name in decay_parameters if "bias" not in name]
+
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.named_parameters() if n in decay_parameters],
+            "weight_decay": training_args.weight_decay,
+        },
+        {
+            "params": [
+                p for n, p in model.named_parameters() if n not in decay_parameters
+            ],
+            "weight_decay": 0.0,
+        },
+    ]
+
+    adam_bnb_optim = bnb.optim.Adam8bit(
+        optimizer_grouped_parameters,
+        # betas=(training_args.adam_beta1, training_args.adam_beta2),
+        # eps=training_args.adam_epsilon,
+        # lr=training_args.learning_rate,
+    )
+
     trainer = Trainer(
         model=model,
         tokenizer=tokenizer,
         args=training_args,
+        optimizers=(adam_bnb_optim, None),
         **data_module,
     )
 
