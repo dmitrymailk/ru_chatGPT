@@ -128,6 +128,11 @@ def fix_tokenizer(tokenizer):
 
     tokenizer.add_special_tokens(special_tokens)
 
+    tokenizer.pad_token = tokenizer.convert_ids_to_tokens(tokenizer.pad_token_id)
+    tokenizer.bos_token = tokenizer.convert_ids_to_tokens(tokenizer.bos_token_id)
+    tokenizer.eos_token = tokenizer.convert_ids_to_tokens(tokenizer.eos_token_id)
+    tokenizer.unk_token = tokenizer.convert_ids_to_tokens(tokenizer.unk_token_id)
+    tokenizer.sep_token = tokenizer.convert_ids_to_tokens(tokenizer.sep_token_id)
     print("Vocab size: ", tokenizer.vocab_size)
     print("PAD: ", tokenizer.pad_token_id, tokenizer.pad_token)
     print("BOS: ", tokenizer.bos_token_id, tokenizer.bos_token)

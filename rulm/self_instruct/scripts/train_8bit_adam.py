@@ -21,6 +21,7 @@ from transformers import (
     TrainerCallback,
     TrainerState,
     TrainerControl,
+    LlamaForCausalLM,
 )
 from transformers.trainer_pt_utils import get_parameter_names
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
@@ -131,9 +132,18 @@ def train(
 
     model_types = {"causal": AutoModelForCausalLM, "seq2seq": AutoModelForSeq2SeqLM}
     load_in_8bit = bool(config.get("load_in_8bit", False))
+    print("Model type: ", model_type)
+    print("Model name: ", model_name)
     if load_in_8bit:
-        model = model_types[model_type].from_pretrained(
-            model_name, load_in_8bit=True, device_map="auto"
+        # model = model_types[model_type].from_pretrained(
+        #     model_name,
+        #     load_in_8bit=True,
+        #     device_map="auto",
+        # )
+        model = LlamaForCausalLM.from_pretrained(
+            model_name,
+            load_in_8bit=True,
+            device_map="auto",
         )
         model = fix_model(model, tokenizer, max_target_tokens_count, use_resize=False)
         model = prepare_model_for_int8_training(model)

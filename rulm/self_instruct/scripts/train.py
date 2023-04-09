@@ -80,6 +80,7 @@ def train(
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer = fix_tokenizer(tokenizer)
+    tokenizer.add_special_tokens({"pad_token": "[PAD]"})
     tokenizer.save_pretrained(output_dir)
 
     train_records = read_jsonl(train_file)
@@ -125,6 +126,7 @@ def train(
 
     model_types = {"causal": AutoModelForCausalLM, "seq2seq": AutoModelForSeq2SeqLM}
     load_in_8bit = bool(config.get("load_in_8bit", False))
+
     if load_in_8bit:
         model = model_types[model_type].from_pretrained(
             model_name, load_in_8bit=True, device_map="auto"
