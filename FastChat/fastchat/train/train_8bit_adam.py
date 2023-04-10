@@ -312,7 +312,7 @@ def train():
     )
     model = prepare_model_for_int8_training(model)
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
+    tokenizer = transformers.LlamaTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
         model_max_length=training_args.model_max_length,
@@ -360,6 +360,8 @@ def train():
         # eps=training_args.adam_epsilon,
         # lr=training_args.learning_rate,
     )
+
+    model = torch.compile(model)
 
     trainer = Trainer(
         model=model,
