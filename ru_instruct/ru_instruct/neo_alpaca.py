@@ -114,7 +114,7 @@ def fixed_gpt2_attn(self, query, key, value, attention_mask=None, head_mask=None
     return attn_output, attn_weights
 
 
-transformers.models.gpt2.modeling_gpt2.GPT2Attention._attn = fixed_gpt2_attn
+# transformers.models.gpt2.modeling_gpt2.GPT2Attention._attn = fixed_gpt2_attn
 
 
 def train(
@@ -168,16 +168,24 @@ def train(
         os.environ["WANDB_LOG_MODEL"] = wandb_log_model
 
     base_model = "ai-forever/mGPT"
+    base_model = "EleutherAI/pythia-70m"
 
-    model = transformers.GPT2LMHeadModel.from_pretrained(
+    # model = transformers.GPT2LMHeadModel.from_pretrained(
+    #     base_model,
+    #     load_in_8bit=True,
+    #     torch_dtype=torch.float16,
+    #     device_map=device_map,
+    # )
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        base_model,
+    )
+
+    model = transformers.AutoModelForCausalLM.from_pretrained(
         base_model,
         load_in_8bit=True,
         torch_dtype=torch.float16,
         device_map=device_map,
-    )
-
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        base_model,
     )
 
     tokenizer.pad_token_id = 0  # unk. we want this to be different from the eos token
@@ -318,6 +326,7 @@ def train(
     model.state_dict = (
         lambda self, *_, **__: get_peft_model_state_dict(self, old_state_dict())
     ).__get__(model, type(model))
+    model.config.use_cache = False
 
     model = torch.compile(model)
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
