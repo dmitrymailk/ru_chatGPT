@@ -167,8 +167,7 @@ def train(
     if len(wandb_log_model) > 0:
         os.environ["WANDB_LOG_MODEL"] = wandb_log_model
 
-    base_model = "ai-forever/mGPT"
-    base_model = "EleutherAI/pythia-70m"
+    base_model = "EleutherAI/pythia-6.9b-deduped"
 
     # model = transformers.GPT2LMHeadModel.from_pretrained(
     #     base_model,
@@ -304,7 +303,7 @@ def train(
             learning_rate=learning_rate,
             fp16=True,
             logging_steps=10,
-            optim="adamw_torch",
+            optim="adamw_bnb_8bit",
             evaluation_strategy="steps" if val_set_size > 0 else "no",
             save_strategy="steps",
             eval_steps=200 if val_set_size > 0 else None,

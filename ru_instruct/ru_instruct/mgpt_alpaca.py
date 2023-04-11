@@ -296,7 +296,7 @@ def train(
             learning_rate=learning_rate,
             fp16=True,
             logging_steps=10,
-            optim="adamw_torch",
+            optim="adamw_bnb_8bit",
             evaluation_strategy="steps" if val_set_size > 0 else "no",
             save_strategy="steps",
             eval_steps=200 if val_set_size > 0 else None,
@@ -318,6 +318,7 @@ def train(
     model.state_dict = (
         lambda self, *_, **__: get_peft_model_state_dict(self, old_state_dict())
     ).__get__(model, type(model))
+    model.config.use_cache = False
 
     model = torch.compile(model)
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
