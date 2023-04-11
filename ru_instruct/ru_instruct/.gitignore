@@ -14,3 +14,4 @@ todo.txt
 .venv
 .vscode
 datasets
+datasets_processed

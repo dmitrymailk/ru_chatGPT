@@ -154,6 +154,12 @@ def _mask_targets(target, tokenized_lens, speakers, header_len, s_ids):
 
 def _add_speaker_and_signal(header, source, get_conversation=True):
     """Add speaker and start/end signal on each round."""
+    """
+    Получаем в итоге что-то типа
+    \n\n
+    human: его предложение и тд
+    gpt: ответ бота 
+    """
     BEGIN_SIGNAL = "### "
     END_SIGNAL = "\n"
     conversation = header
@@ -173,6 +179,8 @@ def _add_speaker_and_signal(header, source, get_conversation=True):
         )
         if get_conversation:
             conversation += sentence["value"]
+    print(conversation)
+    exit()
     return conversation
 
 
@@ -187,6 +195,7 @@ def preprocess(
     3. Tokenize the concatenated conversation;
     4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
     """
+    # print(sources)
     # add end signal and concatenate together
     conversations = []
     header = f"{conversation_lib.default_conversation.system}\n\n"
@@ -220,7 +229,7 @@ class SupervisedDataset(Dataset):
         list_data_dict = json.load(open(data_path, "r"))
 
         logging.warning("Formatting inputs...")
-        sources = [example["conversations"] for example in list_data_dict]
+        sources = [example["conversations"] for example in list_data_dict[:10]]
         data_dict = preprocess(sources, tokenizer)
 
         self.input_ids = data_dict["input_ids"]
@@ -289,9 +298,8 @@ def make_supervised_data_module(
     tokenizer: transformers.PreTrainedTokenizer, data_args
 ) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
-    dataset_cls = (
-        LazySupervisedDataset if data_args.lazy_preprocess else SupervisedDataset
-    )
+    dataset_cls = SupervisedDataset
+
     train_dataset = dataset_cls(tokenizer=tokenizer, data_path=data_args.data_path)
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     return dict(
@@ -304,13 +312,13 @@ def train():
         (ModelArguments, DataArguments, TrainingArguments)
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    model = transformers.LlamaForCausalLM.from_pretrained(
-        model_args.model_name_or_path,
-        cache_dir=training_args.cache_dir,
-        load_in_8bit=True,
-        device_map="auto",
-    )
-    model = prepare_model_for_int8_training(model)
+    # model = transformers.LlamaForCausalLM.from_pretrained(
+    #     model_args.model_name_or_path,
+    #     cache_dir=training_args.cache_dir,
+    #     load_in_8bit=True,
+    #     device_map="auto",
+    # )
+    # model = prepare_model_for_int8_training(model)
 
     tokenizer = transformers.LlamaTokenizer.from_pretrained(
         model_args.model_name_or_path,
@@ -319,25 +327,25 @@ def train():
         padding_side="right",
         use_fast=False,
     )
-    if tokenizer.pad_token is None:
-        smart_tokenizer_and_embedding_resize(
-            special_tokens_dict=dict(pad_token=DEFAULT_PAD_TOKEN),
-            tokenizer=tokenizer,
-            model=model,
-        )
-    if "llama" in model_args.model_name_or_path:
-        tokenizer.add_special_tokens(
-            {
-                "eos_token": DEFAULT_EOS_TOKEN,
-                "bos_token": DEFAULT_BOS_TOKEN,
-                "unk_token": DEFAULT_UNK_TOKEN,
-            }
-        )
-
+    # if tokenizer.pad_token is None:
+    #     smart_tokenizer_and_embedding_resize(
+    #         special_tokens_dict=dict(pad_token=DEFAULT_PAD_TOKEN),
+    #         tokenizer=tokenizer,
+    #         model=model,
+    #     )
+    tokenizer.add_special_tokens(
+        {
+            "eos_token": DEFAULT_EOS_TOKEN,
+            "bos_token": DEFAULT_BOS_TOKEN,
+            "pad_token": DEFAULT_EOS_TOKEN,
+            "unk_token": DEFAULT_UNK_TOKEN,
+        }
+    )
+    print("hello world")
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-
+    print("OK")
     # convert to 8 bit
-
+    exit()
     decay_parameters = get_parameter_names(model, [nn.LayerNorm])
     decay_parameters = [name for name in decay_parameters if "bias" not in name]
 
