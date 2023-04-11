@@ -24,7 +24,9 @@ from typing import Union
 class Prompter(object):
     __slots__ = ("template",)
 
-    def __init__(self, template_name: str = "", verbose: bool = False):
+    def __init__(
+        self,
+    ):
         self.template = {
             "description": "Template used by Alpaca-LoRA.",
             "prompt_input": "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.\n\n### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:\n",
@@ -117,7 +119,6 @@ def train(
     micro_batch_size: int = 4,
     num_epochs: int = 3,
     learning_rate: float = 3e-4,
-    cutoff_len: int = 256,
     # lora hyperparams
     lora_r: int = 8,
     lora_alpha: int = 16,
@@ -126,7 +127,6 @@ def train(
     group_by_length: bool = False,  # faster, but produces an odd training loss curve
     # wandb params
     wandb_run_name: str = "",
-    resume_from_checkpoint: str = None,  # either training checkpoint or final adapter
     prompt_template_name: str = "alpaca",  # The prompt template to use, will default to alpaca.
 ):
     gradient_accumulation_steps = batch_size // micro_batch_size
@@ -154,6 +154,7 @@ def train(
     def tokenize(prompt, add_eos_token=True):
         # there's probably a way to do this with the tokenizer settings
         # but again, gotta move fast
+        cutoff_len = 512
         result = tokenizer(
             prompt,
             truncation=True,
@@ -252,7 +253,7 @@ def train(
     model.config.use_cache = False
 
     model = torch.compile(model)
-    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    trainer.train()
 
     model.save_pretrained(output_dir)
 
