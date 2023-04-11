@@ -22,31 +22,22 @@ from typing import Union
 
 
 class Prompter(object):
-    __slots__ = ("template", "_verbose")
+    __slots__ = ("template",)
 
     def __init__(self, template_name: str = "", verbose: bool = False):
-        self._verbose = verbose
-        if not template_name:
-            # Enforce the default here, so the constructor can be called with '' and will not break.
-            template_name = "alpaca"
-        file_name = osp.join("templates", f"{template_name}.json")
-        if not osp.exists(file_name):
-            raise ValueError(f"Can't read {file_name}")
-        with open(file_name) as fp:
-            self.template = json.load(fp)
-        if self._verbose:
-            print(
-                f"Using prompt template {template_name}: {self.template['description']}"
-            )
+        self.template = {
+            "description": "Template used by Alpaca-LoRA.",
+            "prompt_input": "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.\n\n### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:\n",
+            "prompt_no_input": "Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{instruction}\n\n### Response:\n",
+            "response_split": "### Response:",
+        }
 
     def generate_prompt(
         self,
         instruction: str,
-        input: Union[None, str] = None,
-        label: Union[None, str] = None,
+        input=None,
+        label=None,
     ) -> str:
-        # returns the full prompt from instruction and optional input
-        # if a label (=response, =output) is provided, it's also appended.
         if input:
             res = self.template["prompt_input"].format(
                 instruction=instruction, input=input
@@ -55,8 +46,7 @@ class Prompter(object):
             res = self.template["prompt_no_input"].format(instruction=instruction)
         if label:
             res = f"{res}{label}"
-        if self._verbose:
-            print(res)
+
         return res
 
     def get_response(self, output: str) -> str:
