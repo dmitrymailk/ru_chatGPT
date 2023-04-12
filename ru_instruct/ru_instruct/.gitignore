@@ -14,4 +14,5 @@ todo.txt
 .venv
 .vscode
 datasets
+training_logs
 datasets_processed

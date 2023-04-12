@@ -113,7 +113,7 @@ def train(
     # model/data params
     base_model: str = "",  # the only required argument
     data_path: str = "yahma/alpaca-cleaned",
-    output_dir: str = "./lora-alpaca",
+    output_dir: str = "./mgpt-instruct",
     # training hyperparams
     batch_size: int = 128,
     micro_batch_size: int = 4,
@@ -155,13 +155,13 @@ def train(
 
         tokenized_prompt = tokenizer(
             prompt,
-            max_length=2048,
+            max_length=1024,
             truncation=True,
         )
         user_prompt = prompt[: prompt.index("### Assistant:")]
         tokenized_user_prompt = tokenizer(
             user_prompt,
-            max_length=2048,
+            max_length=1024,
             truncation=True,
             add_special_tokens=False,
         )
@@ -204,7 +204,7 @@ def train(
         .shuffle()
         .map(
             generate_and_tokenize_prompt,
-            num_proc=16,
+            num_proc=32,
             # batched=True,
         )
     )
