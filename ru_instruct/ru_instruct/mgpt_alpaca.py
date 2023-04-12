@@ -131,8 +131,6 @@ def train(
 ):
     gradient_accumulation_steps = batch_size // micro_batch_size
 
-    prompter = Prompter(prompt_template_name)
-
     device_map = "auto"
 
     base_model = "ai-forever/mGPT"
@@ -151,38 +149,28 @@ def train(
     tokenizer.pad_token_id = 0  # unk. we want this to be different from the eos token
     tokenizer.padding_side = "left"  # Allow batched inference
 
-    def tokenize(prompt, add_eos_token=True):
-        # there's probably a way to do this with the tokenizer settings
-        # but again, gotta move fast
-        cutoff_len = 512
-        result = tokenizer(
+    def generate_and_tokenize_prompt(prompt):
+        # print(prompt)
+        prompt = prompt["prompt"]
+
+        tokenized_prompt = tokenizer(
             prompt,
+            max_length=2048,
             truncation=True,
-            max_length=cutoff_len,
-            padding=False,
-            return_tensors=None,
         )
-        if (
-            result["input_ids"][-1] != tokenizer.eos_token_id
-            and len(result["input_ids"]) < cutoff_len
-            and add_eos_token
-        ):
-            result["input_ids"].append(tokenizer.eos_token_id)
-            result["attention_mask"].append(1)
-
-        result["labels"] = result["input_ids"].copy()
-
-        return result
-
-    def generate_and_tokenize_prompt(data_point):
-        full_prompt = prompter.generate_prompt(
-            data_point["instruction"],
-            data_point["input"],
-            data_point["output"],
+        user_prompt = prompt[: prompt.index("### Assistant:")]
+        tokenized_user_prompt = tokenizer(
+            user_prompt,
+            max_length=2048,
+            truncation=True,
+            add_special_tokens=False,
         )
-        tokenized_full_prompt = tokenize(full_prompt)
+        prompt_len = len(tokenized_user_prompt["input_ids"])
 
-        return tokenized_full_prompt
+        tokenized_prompt["labels"] = [-100] * (prompt_len) + tokenized_prompt[
+            "input_ids"
+        ][prompt_len:]
+        return tokenized_prompt
 
     model = prepare_model_for_int8_training(model)
 
@@ -196,7 +184,16 @@ def train(
     )
     model = get_peft_model(model, config)
 
-    data = load_dataset(data_path)
+    datasets_folder = (
+        "/home/kosenko/ru_chatGPT/ru_instruct/ru_instruct/sandbox/datasets_processed/"
+    )
+    data_files = {
+        "train": [f"{datasets_folder}{path}" for path in os.listdir(datasets_folder)]
+    }
+    data = load_dataset(
+        "json",
+        data_files=data_files,
+    )
 
     model.print_trainable_parameters()  # Be more transparent about the % of trainable params.
 
@@ -208,6 +205,7 @@ def train(
         .map(
             generate_and_tokenize_prompt,
             num_proc=16,
+            # batched=True,
         )
     )
     val_data = None
@@ -235,7 +233,10 @@ def train(
     )
 
     data_collator = transformers.DataCollatorForSeq2Seq(
-        tokenizer, pad_to_multiple_of=8, return_tensors="pt", padding=True
+        tokenizer,
+        pad_to_multiple_of=8,
+        return_tensors="pt",
+        padding=True,
     )
 
     trainer = transformers.Trainer(
