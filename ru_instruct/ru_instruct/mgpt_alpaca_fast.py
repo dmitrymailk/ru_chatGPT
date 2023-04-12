@@ -20,39 +20,7 @@ import json
 import os.path as osp
 from typing import Union
 
-
-class Prompter(object):
-    __slots__ = ("template",)
-
-    def __init__(
-        self,
-    ):
-        self.template = {
-            "description": "Template used by Alpaca-LoRA.",
-            "prompt_input": "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.\n\n### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:\n",
-            "prompt_no_input": "Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{instruction}\n\n### Response:\n",
-            "response_split": "### Response:",
-        }
-
-    def generate_prompt(
-        self,
-        instruction: str,
-        input=None,
-        label=None,
-    ) -> str:
-        if input:
-            res = self.template["prompt_input"].format(
-                instruction=instruction, input=input
-            )
-        else:
-            res = self.template["prompt_no_input"].format(instruction=instruction)
-        if label:
-            res = f"{res}{label}"
-
-        return res
-
-    def get_response(self, output: str) -> str:
-        return output.split(self.template["response_split"])[1].strip()
+torch.backends.cuda.matmul.allow_tf32 = True
 
 
 def fixed_gpt2_attn(self, query, key, value, attention_mask=None, head_mask=None):
@@ -149,29 +117,6 @@ def train(
     tokenizer.pad_token_id = 0  # unk. we want this to be different from the eos token
     tokenizer.padding_side = "left"  # Allow batched inference
 
-    def generate_and_tokenize_prompt(prompt):
-        # print(prompt)
-        prompt = prompt["prompt"]
-
-        tokenized_prompt = tokenizer(
-            prompt,
-            max_length=1024,
-            truncation=True,
-        )
-        user_prompt = prompt[: prompt.index("### Assistant:")]
-        tokenized_user_prompt = tokenizer(
-            user_prompt,
-            max_length=1024,
-            truncation=True,
-            add_special_tokens=False,
-        )
-        prompt_len = len(tokenized_user_prompt["input_ids"])
-
-        tokenized_prompt["labels"] = [-100] * (prompt_len) + tokenized_prompt[
-            "input_ids"
-        ][prompt_len:]
-        return tokenized_prompt
-
     model = prepare_model_for_int8_training(model)
 
     config = LoraConfig(
@@ -184,35 +129,10 @@ def train(
     )
     model = get_peft_model(model, config)
 
-    # datasets_folder = (
-    #     "/home/kosenko/ru_chatGPT/ru_instruct/ru_instruct/sandbox/datasets_processed/"
-    # )
-    # data_files = {
-    #     "train": [f"{datasets_folder}{path}" for path in os.listdir(datasets_folder)]
-    # }
-    # data = load_dataset(
-    #     "json",
-    #     data_files=data_files,
-    # )
-
-    # model.print_trainable_parameters()  # Be more transparent about the % of trainable params.
-
-    # # всеравно мы никак не можем адекватно мерить модель
-    # # тогда зачем тратить на валидацию данные?
-    # train_data = (
-    #     data["train"]
-    #     .shuffle()
-    #     .map(
-    #         generate_and_tokenize_prompt,
-    #         num_proc=32,
-    #         # batched=True,
-    #     )
-    # )
-    # train_data.save_to_disk("./datasets/all_v1")
     train_data = load_from_disk("./datasets/all_v1")
     val_data = None
 
-    #  0%|| 4/31635 [01:02<137:10:51, 15.61s/it] - 8 batch size
+    # 0%|| 4/31635 [01:05<143:34:59, 16.34s/it] - tf32=True, bf16=True,
     training_params = transformers.TrainingArguments(
         per_device_train_batch_size=micro_batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
@@ -221,7 +141,7 @@ def train(
         learning_rate=learning_rate,
         fp16=True,
         logging_steps=10,
-        optim="adamw_bnb_8bit",
+        optim="adamw_apex_fused",
         evaluation_strategy="no",
         save_strategy="steps",
         eval_steps=None,
@@ -233,6 +153,8 @@ def train(
         group_by_length=group_by_length,
         report_to="wandb",
         run_name=wandb_run_name,
+        # tf32=True,
+        # bf16=True,
     )
 
     data_collator = transformers.DataCollatorForSeq2Seq(
@@ -257,7 +179,7 @@ def train(
     model.config.use_cache = False
 
     model = torch.compile(model)
-    # trainer.train()
+    trainer.train()
 
     model.save_pretrained(output_dir)
 
